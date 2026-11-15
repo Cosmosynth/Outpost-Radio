@@ -2,3 +2,6 @@ Thumbs.db
 desktop.ini
 .DS_Store
 *.log
+
+# Full-resolution wallpaper source. Only the optimized WebP ships.
+assets/Lakeside-sunset.png

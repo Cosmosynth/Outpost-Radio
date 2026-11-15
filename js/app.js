@@ -5,7 +5,7 @@
  * `player-core.js`; this file only translates state into the DOM and translates
  * audio events back into state. Keep it boring — the reducer holds the logic.
  */
-import { CHANNELS } from "./channels.js";
+import { CHANNELS, GROUPS } from "./channels.js";
 import {
   STATUS,
   createState,
@@ -36,10 +36,14 @@ const el = {
   volume: document.getElementById("volume"),
   volumeValue: document.getElementById("volume-value"),
   stations: document.getElementById("stations"),
+  stationsCount: document.getElementById("stations-count"),
   stationName: document.getElementById("station-name"),
   stationGroup: document.getElementById("station-group"),
+  stationNumber: document.getElementById("station-number"),
+  stationTotal: document.getElementById("station-total"),
   status: document.getElementById("status"),
   needle: document.getElementById("dial-needle"),
+  tunerScale: document.getElementById("tuner-scale"),
   toast: document.getElementById("toast"),
   iconPlay: document.getElementById("icon-play"),
   iconPause: document.getElementById("icon-pause"),
@@ -109,6 +113,25 @@ function showToast(message, ms = 3000) {
 
 // --------------------------------------------------------------------- render
 
+const pad2 = (value) => String(value).padStart(2, "0");
+
+/** Where station `index` sits on the tuner rail, matching the CSS inset. */
+function scalePosition(index, count = CHANNELS.length || 1) {
+  return 4 + ((index + 0.5) / count) * 92;
+}
+
+/** Scroll only the station rail — never the page — to keep the active row in view. */
+function keepActiveVisible(row) {
+  const list = el.stations;
+  const top = row.offsetTop;
+  const bottom = top + row.offsetHeight;
+  const viewTop = list.scrollTop;
+  const viewBottom = viewTop + list.clientHeight;
+
+  if (top < viewTop) list.scrollTop = Math.max(0, top - 8);
+  else if (bottom > viewBottom) list.scrollTop = bottom - list.clientHeight + 8;
+}
+
 function render() {
   const channel = channelAt(CHANNELS, state.index);
   const showPause = state.status === STATUS.PLAYING || state.status === STATUS.LOADING;
@@ -121,6 +144,9 @@ function render() {
   // it on every volume tick would make screen readers announce it repeatedly.
   if (el.stationName.textContent !== name) el.stationName.textContent = name;
   if (el.stationGroup.textContent !== group) el.stationGroup.textContent = group;
+  if (el.stationNumber.textContent !== pad2(state.index + 1)) {
+    el.stationNumber.textContent = pad2(state.index + 1);
+  }
   if (el.status.textContent !== statusText) el.status.textContent = statusText;
   el.status.dataset.status = state.status;
 
@@ -139,30 +165,34 @@ function render() {
   el.mute.setAttribute("aria-label", state.muted ? "Unmute" : "Mute");
   el.mute.setAttribute("aria-pressed", String(state.muted));
 
-  el.volume.value = String(Math.round(state.volume * 100));
+  const percent = Math.round(state.volume * 100);
+  el.volume.value = String(percent);
+  // The native range paints a bare thumb on Chrome; the filled rail comes from
+  // this custom property, which the track gradient reads.
+  el.volume.style.setProperty("--fill", `${percent}%`);
+  el.volume.classList.toggle("is-muted", state.muted);
   el.volumeValue.textContent = state.muted ? "MUTE" : formatVolume(state);
 
-  const count = CHANNELS.length || 1;
-  const slot = ((state.index + 0.5) / count) * 100;
-  el.needle.style.left = `${4 + slot * 0.92}%`;
+  el.needle.style.left = `${scalePosition(state.index)}%`;
 
   const previousIndex = lastRenderedIndex;
   lastRenderedIndex = state.index;
-  // Never scroll on first paint — on a short screen that would yank the page
-  // down to the station strip before the user has read anything.
+  // Never scroll on first paint — the rail has its own scroll position and the
+  // user has not chosen anything yet.
   const shouldScroll = previousIndex !== -1 && previousIndex !== state.index;
 
-  for (const chip of el.stations.children) {
-    const index = Number(chip.dataset.index);
+  for (const row of el.stations.children) {
+    if (!row.classList.contains("station")) continue;
+    const index = Number(row.dataset.index);
     const active = index === state.index;
-    chip.classList.toggle("is-active", active);
-    chip.classList.toggle("is-dead", state.dead.includes(index));
-    if (active) chip.setAttribute("aria-current", "true");
-    else chip.removeAttribute("aria-current");
-
-    // Keep the dialled station visible in the strip, without yanking the page.
-    if (active && shouldScroll) {
-      chip.scrollIntoView({ block: "nearest", inline: "center", behavior: "auto" });
+    row.classList.toggle("is-active", active);
+    row.classList.toggle("is-dead", state.dead.includes(index));
+    if (active) {
+      row.setAttribute("aria-current", "true");
+      // Keep the dialled station visible in the rail, without moving the page.
+      if (shouldScroll) keepActiveVisible(row);
+    } else {
+      row.removeAttribute("aria-current");
     }
   }
 
@@ -177,33 +207,86 @@ function render() {
 
 function buildStationList() {
   const fragment = document.createDocumentFragment();
+  const total = CHANNELS.length;
 
-  CHANNELS.forEach((channel, index) => {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "chip";
-    chip.dataset.index = String(index);
-    chip.dataset.group = channel.group;
-    chip.title = `${channel.group} · ${channel.name}`;
+  if (el.stationsCount) el.stationsCount.textContent = `${total} live`;
+  if (el.stationTotal) el.stationTotal.textContent = pad2(total);
 
-    const dot = document.createElement("span");
-    dot.className = "chip__dot";
-    dot.setAttribute("aria-hidden", "true");
+  GROUPS.forEach((groupName) => {
+    const members = CHANNELS.map((channel, index) => ({ channel, index }))
+      .filter(({ channel }) => channel.group === groupName);
+    if (!members.length) return;
 
-    chip.append(dot, document.createTextNode(channel.name));
-    chip.addEventListener("click", () => {
-      // Clicking a station that failed earlier is a deliberate retry.
-      if (state.dead.includes(index)) {
-        state = { ...state, dead: state.dead.filter((i) => i !== index) };
-      }
-      if (index === state.index && state.status === STATUS.PLAYING) return;
-      loadStation(index, { autoplay: true });
-    });
+    const heading = document.createElement("h3");
+    heading.className = "stations__group";
+    heading.textContent = groupName;
+    fragment.append(heading);
 
-    fragment.append(chip);
+    for (const { channel, index } of members) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "station";
+      row.dataset.index = String(index);
+      row.dataset.group = channel.group;
+      row.title = `${channel.group} · ${channel.name}`;
+
+      const num = document.createElement("span");
+      num.className = "station__num";
+      num.textContent = pad2(index + 1);
+      num.setAttribute("aria-hidden", "true");
+
+      const label = document.createElement("span");
+      label.className = "station__name";
+      label.textContent = channel.name;
+
+      const signal = document.createElement("span");
+      signal.className = "station__signal";
+      signal.setAttribute("aria-hidden", "true");
+      for (let bar = 0; bar < 3; bar += 1) signal.append(document.createElement("i"));
+
+      row.append(num, label, signal);
+      row.addEventListener("click", () => {
+        // Clicking a station that failed earlier is a deliberate retry.
+        if (state.dead.includes(index)) {
+          state = { ...state, dead: state.dead.filter((i) => i !== index) };
+        }
+        if (index === state.index && state.status === STATUS.PLAYING) return;
+        loadStation(index, { autoplay: true });
+      });
+
+      fragment.append(row);
+    }
   });
 
   el.stations.append(fragment);
+}
+
+/**
+ * Draw the tuner scale once. Ticks align with the same `scalePosition` math the
+ * needle uses, so the pointer lands on the station it names.
+ */
+function buildTuner() {
+  if (!el.tunerScale) return;
+  const total = CHANNELS.length || 1;
+  const fragment = document.createDocumentFragment();
+
+  CHANNELS.forEach((channel, index) => {
+    const major = index % 4 === 0 || index === total - 1;
+    const tick = document.createElement("span");
+    tick.className = major ? "tuner__tick is-major" : "tuner__tick";
+    tick.style.left = `${scalePosition(index, total)}%`;
+    fragment.append(tick);
+
+    if (!major) return;
+    const label = document.createElement("span");
+    label.className = "tuner__label";
+    label.style.left = `${scalePosition(index, total)}%`;
+    label.textContent = pad2(index + 1);
+    label.title = channel.name;
+    fragment.append(label);
+  });
+
+  el.tunerScale.append(fragment);
 }
 
 // ---------------------------------------------------------------------- audio
@@ -407,9 +490,9 @@ function updateMediaMetadata(channel) {
       album: "Outpost Radio",
       artwork: [
         {
-          src: new URL("assets/sunset-bg.jpg", window.location.href).href,
-          sizes: "3840x2160",
-          type: "image/jpeg",
+          src: new URL("assets/lakeside-sunset.webp", window.location.href).href,
+          sizes: "2560x1440",
+          type: "image/webp",
         },
       ],
     });
@@ -597,6 +680,7 @@ function init() {
   }
 
   buildStationList();
+  buildTuner();
   wireAudioEvents();
   wireControls();
   wireKeyboard();

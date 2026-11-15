@@ -1,35 +1,19 @@
 # Outpost Radio
 
-A local-only glass console for the live lofi, ambient and synth stations from
-[Firewatch-Clock-Trials](https://github.com/Cosmosynth/Firewatch-Clock-Trials).
-No OST files, no build step, no dependencies — just `index.html`, CSS, and
-three ES modules.
+A glass receiver on a lakeside dusk. Live lofi, ambient, synth and radio streams
+from [Firewatch-Clock-Trials](https://github.com/Cosmosynth/Firewatch-Clock-Trials),
+played by a single static page — no build step, no dependencies, no backend.
 
-Dusk ridges, frosted panels, an amber tuning needle. Open it, press play, leave
-it on.
+Anton station names over the wallpaper, a tall frosted receiver on the right, one
+amber needle sliding across a 17-station tuner. Open it, press play, leave it on.
 
 ---
 
-## Run it
+## Hosting
 
-ES modules do not load from `file://`, so double-clicking `index.html` will give
-you a blank player. Serve the folder over HTTP:
-
-```powershell
-# from this folder
-python -m http.server 5173 --bind 127.0.0.1
-```
-
-If `python` is not on PATH, Windows installs from python.org usually provide
-`py -3 -m http.server 5173 --bind 127.0.0.1`.
-
-Then open <http://127.0.0.1:5173>.
-
-On Windows you can also double-click **`serve.cmd`**, which starts the same
-server and opens the browser.
-
-Any static server works (`npx serve`, `php -S`, VS Code Live Server). There is
-nothing to install or compile.
+Everything is static: push the folder to any static host (GitHub Pages works
+as-is). It must be served over HTTP rather than opened from `file://`, because
+the player is built from ES modules.
 
 ---
 
@@ -37,11 +21,11 @@ nothing to install or compile.
 
 | Control | Mouse | Keyboard |
 | --- | --- | --- |
-| Play / pause | big amber button | `space` or `k` |
+| Play / pause | cream transport button | `space` or `k` |
 | Previous / next station | ◀ ▶ | `←` `→` |
 | Mute | speaker icon | `m` |
 | Volume | slider (mouse wheel works too) | focus the slider, then arrows |
-| Pick a station | any chip in the strip | tab to it, `enter` |
+| Pick a station | any row in the station rail | tab to it, `enter` |
 
 Your last station, volume and mute state are saved in `localStorage` under
 `outpost-radio:v1`. There is no analytics or backend; the only external requests
@@ -75,10 +59,27 @@ Upstream fixes worth knowing about, because they are easy to reintroduce:
 
 ### If a station dies
 
-The player retries once, then marks the station dead (struck through in the
-strip) and auto-skips to the next playable one instead of hanging on silence.
-Clicking a struck-through station revives it for another try. The dead list is
-per-session only — a station that comes back is available again next reload.
+The player retries once, then marks the station dead (struck through in the rail)
+and auto-skips to the next playable one instead of hanging on silence. Clicking a
+struck-through station revives it for another try. The dead list is per-session
+only — a station that comes back is available again next reload.
+
+---
+
+## The interface
+
+- **Poster** — the current station name set large in Anton, bottom-left over the
+  lake, with a status LED reading `STANDBY`, `TUNING`, `ON AIR`, `PAUSED` or
+  `OFFLINE`.
+- **Receiver** — one frosted panel holding the tuner readout and scale, the
+  transport, the volume control, and the vertical station rail. The rail groups
+  stations by mood and keeps the dialled row in view.
+- **Tuner** — ticks are derived from the station list, so the needle and the
+  scale cannot drift apart; the readout is the station's place in the list.
+- **Volume** — a filled rail behind the thumb, dimmed to muted cream when muted.
+  The slider keeps its real position while muted so unmuting restores it.
+- **Signal bars** — the three bars beside the active station animate only while
+  audio is actually playing. They are decoration, not a VU meter.
 
 ---
 
@@ -104,14 +105,14 @@ body. Zeno.fm needs a browser user-agent, which the script sends.
 ## How it is put together
 
 ```
-index.html          static shell: ridges, glass panels, controls
+index.html          static shell: scene, poster, glass receiver, controls
 styles.css          all styling, including the glass fallback and reduced motion
-js/channels.js      station data (id, name, group, url)
+js/channels.js      station data (id, name, group, url) and the group order
 js/player-core.js   pure reducer — no DOM, no audio, fully tested
 js/app.js           DOM + <audio> wiring, retry/skip, persistence, media session
 tests/              node:test cases against the reducer and the data
 scripts/            stream link checker
-assets/             background image
+assets/             lakeside-sunset.webp (shipped) + Lakeside-sunset.png (source)
 ```
 
 The split is deliberate: every decision that can be wrong (wrap-around,
@@ -120,14 +121,14 @@ skipping dead stations, volume clamping, which station comes next) lives in
 
 ### Two honest limitations
 
-- **The meter is decorative.** A real spectrum meter needs `AnalyserNode`,
-  which requires CORS on the audio stream. Icecast does not send
-  `Access-Control-Allow-Origin`, and setting `audio.crossOrigin` would break
-  playback outright. The bars animate on a CSS timer while audio is playing and
-  still when it is not. It is not pretending to be a VU meter.
+- **No spectrum meter.** A real one needs `AnalyserNode`, which requires CORS on
+  the audio stream. Icecast does not send `Access-Control-Allow-Origin`, and
+  setting `audio.crossOrigin` would break playback outright. The signal bars
+  beside the active station are a CSS animation tied to playback state — they
+  do not pretend to follow the audio.
 - **No per-track "now playing".** ICY metadata is also blocked by CORS without
-  a proxy, and this project has no backend. The dial shows the station, which
-  is what the browser can actually know.
+  a proxy, and this project has no backend. The receiver names the station,
+  which is what the browser can actually know.
 
 Live streams also cannot seek — there is no duration and no position to scrub.
 
@@ -135,9 +136,8 @@ Live streams also cannot seek — there is no duration and no position to scrub.
 
 `backdrop-filter` is the whole look, and some browsers (notably older Firefox on
 Windows) do not support it. A `@supports not (backdrop-filter: …)` rule swaps
-the panels to a solid dark surface so the text stays readable instead of
-turning into mud. The drifting scene animations pause while the tab is hidden,
-and all drift/twinkle motion stops under `prefers-reduced-motion: reduce`.
+the receiver to a solid dark surface so the text stays readable instead of
+turning into mud. All motion stops under `prefers-reduced-motion: reduce`.
 
 ---
 
@@ -150,7 +150,9 @@ Edit `js/channels.js`:
 ```
 
 `group` must be one of `Lofi`, `Ambient`, `Synth`, `Radio` — the tests enforce
-this, along with unique ids, https-only URLs, and a non-empty name. Then run:
+this, along with unique ids, https-only URLs, and a non-empty name. The tuner,
+readout and station count all read from `CHANNELS`, so nothing else needs
+editing. Then run:
 
 ```powershell
 node --test
@@ -158,7 +160,8 @@ node scripts/check-links.mjs
 ```
 
 Station names, logos and streams belong to their respective broadcasters. This
-is a personal local player; nothing is re-hosted.
+is a personal player; nothing is re-hosted.
 
-The background image is from the author's own
-`Firewatch-Clock-Trials/wallpapers/sunset-bg.jpg`.
+The wallpaper is the author's own
+`Firewatch-Clock-Trials/wallpapers/Lakeside-sunset.png`, resized to 2560×1440 and
+shipped as WebP.

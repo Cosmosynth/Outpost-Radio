@@ -166,7 +166,7 @@ test("formatVolume respects mute", () => {
 
 test("statusLabel maps every status", () => {
   const base = createState({ channels: fakeChannels });
-  assert.equal(statusLabel(base), "READY");
+  assert.equal(statusLabel(base), "STANDBY");
   assert.equal(statusLabel({ ...base, status: STATUS.PLAYING }), "ON AIR");
   assert.equal(statusLabel({ ...base, status: STATUS.LOADING }), "TUNING");
   assert.equal(statusLabel({ ...base, status: STATUS.PAUSED }), "PAUSED");

@@ -117,6 +117,6 @@ export function statusLabel(state) {
     case STATUS.PLAYING: return "ON AIR";
     case STATUS.PAUSED: return "PAUSED";
     case STATUS.ERROR: return state.error ?? "OFFLINE";
-    default: return "READY";
+    default: return "STANDBY";
   }
 }
