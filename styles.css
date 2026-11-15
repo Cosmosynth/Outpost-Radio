@@ -69,9 +69,10 @@ button {
 
 /* SVG elements are not HTML elements, so the UA `[hidden] { display: none }`
    rule does not match them. Without this, both glyphs paint on top of each
-   other inside the play and mute buttons. */
+   other inside the play and mute buttons. Keep it `!important`: a later
+   `display` rule on an icon must never resurrect the hidden glyph. */
 svg[hidden] {
-  display: none;
+  display: none !important;
 }
 
 /* ------------------------------------------------------------------ scene */
@@ -481,12 +482,10 @@ kbd {
   transform: translateY(1px) scale(0.97);
 }
 
-.transport__play svg {
-  display: block;
-}
-
+/* The play triangle's bbox sits ~2px right of the viewBox centre, so nudge it
+   back. The pause bars are already centred. */
 .transport__play #icon-play {
-  margin-left: 2px;
+  margin-left: -2px;
 }
 
 .transport__play #icon-pause {
@@ -656,8 +655,13 @@ kbd {
   min-height: 180px;
   overflow-y: auto;
   padding-right: 2px;
+  padding-bottom: 26px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  /* Fade the row that is half-scrolled out of the rail, so the cut reads as a
+     scroll edge instead of a clipped button. */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 26px), transparent 100%);
 }
 
 .stations__list::-webkit-scrollbar {
@@ -680,7 +684,7 @@ kbd {
 }
 
 .stations__group:first-child {
-  padding-top: 2px;
+  padding-top: 8px;
 }
 
 .station {
@@ -819,15 +823,21 @@ body[data-state="playing"] .station.is-active .station__signal i:nth-child(3) {
     display: flex;
     flex-direction: column;
     gap: 14px;
+    height: 100dvh;
+    min-height: 100dvh;
     padding: 16px;
+    overflow: hidden;
   }
 
   .masthead {
     order: 0;
+    flex: 0 0 auto;
   }
 
   .poster {
     order: 1;
+    align-self: stretch;
+    flex: 0 0 auto;
     margin-top: 4px;
     padding-bottom: 0;
   }
@@ -841,20 +851,20 @@ body[data-state="playing"] .station.is-active .station__signal i:nth-child(3) {
     order: 2;
     align-self: stretch;
     height: auto;
-    flex: 1;
+    flex: 1 1 auto;
     min-height: 0;
     margin-top: 2px;
     padding: 16px 16px 12px;
   }
 
+  /* Only the rail scrolls: the tuner and transport stay on screen. */
+  .stations__list {
+    min-height: 0;
+  }
+
   .transport__play {
     width: 54px;
     height: 54px;
-  }
-
-  /* Keep the receiver close to one screen tall; the rail scrolls on its own. */
-  .stations__list {
-    max-height: 300px;
   }
 }
 
@@ -889,7 +899,7 @@ body[data-state="playing"] .station.is-active .station__signal i:nth-child(3) {
   }
 
   .stations__list {
-    min-height: 150px;
+    min-height: 0;
   }
 }
 
