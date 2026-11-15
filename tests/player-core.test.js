@@ -15,6 +15,10 @@ import {
   setVolume,
   toggleMute,
   channelAt,
+  channelIndexById,
+  toggleFavorite,
+  pushRecent,
+  filterChannels,
   formatVolume,
   statusLabel,
 } from "../js/player-core.js";
@@ -178,10 +182,61 @@ test("channelAt returns null for a missing index", () => {
   assert.equal(channelAt(CHANNELS, 999), null);
 });
 
+// ---------------------------------------------------------------- favourites
+
+test("channelIndexById finds a station or reports -1", () => {
+  assert.equal(channelIndexById(CHANNELS, "fipjazz"), CHANNELS.findIndex((c) => c.id === "fipjazz"));
+  assert.equal(channelIndexById(CHANNELS, "nope"), -1);
+  assert.equal(channelIndexById(CHANNELS, null), -1);
+});
+
+test("toggleFavorite adds, removes and never duplicates", () => {
+  const base = createState({ channels: fakeChannels });
+  const added = toggleFavorite(base, "c1");
+  assert.deepEqual(added.favorites, ["c1"]);
+  assert.deepEqual(base.favorites, []);
+  assert.deepEqual(toggleFavorite(added, "c1").favorites, []);
+  assert.deepEqual(toggleFavorite(toggleFavorite(added, "c1"), "c1").favorites, ["c1"]);
+  assert.equal(toggleFavorite(base, ""), base);
+});
+
+test("createState cleans favourites and caps recents", () => {
+  const state = createState({
+    channels: fakeChannels,
+    favorites: ["a", "a", 7, "", "b"],
+    recent: ["a", "b", "c", "d", "e", "f"],
+  });
+  assert.deepEqual(state.favorites, ["a", "b"]);
+  assert.equal(state.recent.length, 5);
+  assert.deepEqual(state.recent, ["a", "b", "c", "d", "e"]);
+});
+
+test("pushRecent moves a station to the front and dedupes", () => {
+  const state = { ...createState({ channels: fakeChannels }), recent: ["a", "b", "c"] };
+  assert.deepEqual(pushRecent(state, "b").recent, ["b", "a", "c"]);
+  assert.deepEqual(pushRecent(state, "d").recent, ["d", "a", "b", "c"]);
+  assert.deepEqual(pushRecent(state, "z", 2).recent, ["z", "a"]);
+});
+
+test("filterChannels matches name, place, note and group", () => {
+  const list = [
+    { id: "a", name: "FIP Jazz", group: "Jazz", place: "Paris", note: "Jazz" },
+    { id: "b", name: "Lofi One", group: "Lofi", place: "Berlin", note: "Lofi" },
+    { id: "c", name: "KEXP", group: "Eclectic", place: "Seattle", note: "Indie" },
+  ];
+
+  assert.deepEqual(filterChannels(list, { query: "paris" }).map((c) => c.id), ["a"]);
+  assert.deepEqual(filterChannels(list, { query: "jazz fip" }).map((c) => c.id), ["a"]);
+  assert.deepEqual(filterChannels(list, { query: "nope" }), []);
+  assert.deepEqual(filterChannels(list, { group: "Lofi" }).map((c) => c.id), ["b"]);
+  assert.deepEqual(filterChannels(list, { favoritesOnly: true, favorites: ["c", "a"] }).map((c) => c.id), ["a", "c"]);
+  assert.equal(filterChannels(list).length, 3);
+});
+
 // ---------------------------------------------------------------- station data
 
 test("station data is well formed", () => {
-  assert.ok(CHANNELS.length >= 15, `expected at least 15 stations, got ${CHANNELS.length}`);
+  assert.ok(CHANNELS.length >= 30, `expected at least 30 stations, got ${CHANNELS.length}`);
 
   const ids = new Set();
   for (const channel of CHANNELS) {
@@ -192,7 +247,16 @@ test("station data is well formed", () => {
     assert.ok(channel.name.length >= 2, `station ${channel.id} needs a name`);
     assert.ok(GROUPS.includes(channel.group), `station ${channel.id} has unknown group ${channel.group}`);
     assert.match(channel.url, /^https:\/\//, `station ${channel.id} must use https`);
+    assert.ok(channel.place, `station ${channel.id} needs a place`);
+    assert.ok(channel.note, `station ${channel.id} needs a note`);
   }
+});
+
+test("every group has stations and a display order", () => {
+  for (const group of GROUPS) {
+    assert.ok(CHANNELS.some((channel) => channel.group === group), `group ${group} is empty`);
+  }
+  assert.equal(new Set(GROUPS).size, GROUPS.length);
 });
 
 test("every station is reachable in the data model", () => {

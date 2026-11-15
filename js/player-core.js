@@ -27,7 +27,17 @@ export function wrapIndex(index, length) {
   return ((i % length) + length) % length;
 }
 
-export function createState({ channels = [], index = 0, volume = DEFAULT_VOLUME, muted = false, dead = [] } = {}) {
+const RECENT_LIMIT = 5;
+
+export function createState({
+  channels = [],
+  index = 0,
+  volume = DEFAULT_VOLUME,
+  muted = false,
+  dead = [],
+  favorites = [],
+  recent = [],
+} = {}) {
   const length = channels.length;
   const cleanDead = [...new Set(Array.isArray(dead) ? dead : [])]
     .filter((i) => Number.isInteger(i) && i >= 0 && i < length);
@@ -38,8 +48,57 @@ export function createState({ channels = [], index = 0, volume = DEFAULT_VOLUME,
     volume: clampVolume(volume),
     muted: Boolean(muted),
     dead: cleanDead,
+    favorites: cleanIds(favorites),
+    recent: cleanIds(recent).slice(0, RECENT_LIMIT),
     error: null,
   };
+}
+
+function cleanIds(value) {
+  const list = Array.isArray(value) ? value : [];
+  return [...new Set(list.filter((id) => typeof id === "string" && id.length > 0))];
+}
+
+/** Index of a station by its stable id, or -1. */
+export function channelIndexById(channels, id) {
+  if (typeof id !== "string") return -1;
+  return channels.findIndex((channel) => channel.id === id);
+}
+
+/** Add or remove a station id from the favourites, without duplicating it. */
+export function toggleFavorite(state, id) {
+  if (typeof id !== "string" || !id) return state;
+  const favorites = state.favorites.includes(id)
+    ? state.favorites.filter((entry) => entry !== id)
+    : [...state.favorites, id];
+  return { ...state, favorites };
+}
+
+/** Remember a station at the front of the recent list. */
+export function pushRecent(state, id, limit = RECENT_LIMIT) {
+  if (typeof id !== "string" || !id) return state;
+  const next = [id, ...state.recent.filter((entry) => entry !== id)].slice(0, Math.max(0, limit));
+  return { ...state, recent: next };
+}
+
+/**
+ * Filter stations for the drawer. Every word in `query` must appear somewhere
+ * in the station's name, group, place or note.
+ */
+export function filterChannels(channels, { query = "", group = "All", favoritesOnly = false, favorites = [] } = {}) {
+  const tokens = String(query).toLowerCase().split(/\s+/).filter(Boolean);
+
+  return channels.filter((channel) => {
+    if (favoritesOnly && !favorites.includes(channel.id)) return false;
+    if (group && group !== "All" && group !== "Favorites" && channel.group !== group) return false;
+
+    if (!tokens.length) return true;
+    const haystack = [channel.name, channel.group, channel.place, channel.note]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return tokens.every((token) => haystack.includes(token));
+  });
 }
 
 export function isDead(state, index) {

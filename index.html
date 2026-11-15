@@ -4,8 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Outpost Radio — live lofi</title>
-  <meta name="description" content="A lakeside radio for the late shift. Live lofi, ambient and synth streams in a glass receiver.">
+  <meta name="description" content="A lakeside radio console for the late shift. Thirty live lofi, ambient, jazz and eclectic streams.">
   <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#14101f">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2314101f'/%3E%3Cpath d='M32 12v40M20 24a17 17 0 0 0 0 16M44 24a17 17 0 0 1 0 16' stroke='%23ff9e64' stroke-width='4' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='32' cy='48' r='4' fill='%23ff9e64'/%3E%3C/svg%3E">
   <link rel="preload" as="image" href="assets/lakeside-sunset.webp" type="image/webp">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,7 +14,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body data-state="idle">
+<body data-state="idle" data-density="full" data-layout="console">
   <div class="scene" aria-hidden="true">
     <div class="scene__photo"></div>
     <div class="scene__wash"></div>
@@ -24,7 +25,8 @@
     <header class="masthead">
       <span class="masthead__mark" aria-hidden="true"></span>
       <h1 class="masthead__title">Outpost Radio</h1>
-      <p class="masthead__meta">Live lofi · ambient · synth</p>
+      <p class="masthead__meta">Live lofi · ambient · jazz · world</p>
+      <time class="masthead__clock" id="clock">--:--</time>
     </header>
 
     <section class="poster" aria-label="Now playing">
@@ -34,82 +36,216 @@
       </p>
       <p class="poster__group" id="station-group">LOFI</p>
       <h2 class="poster__station" id="station-name" aria-live="polite">StreamAfrica Lofi</h2>
+      <p class="poster__meta" id="station-meta">CAPE TOWN · LOFI</p>
       <p class="poster__hint">
         <kbd>space</kbd> play
         <span class="poster__hint-sep">·</span>
         <kbd>←</kbd><kbd>→</kbd> tune
         <span class="poster__hint-sep">·</span>
         <kbd>m</kbd> mute
+        <span class="poster__hint-sep">·</span>
+        <kbd>/</kbd> stations
       </p>
     </section>
 
-    <aside class="receiver glass" aria-label="Radio controls">
-      <div class="receiver__row">
-        <span class="receiver__label">Tuner</span>
-        <span class="receiver__readout"><span id="station-number">01</span><span class="receiver__slash">/</span><span id="station-total">17</span></span>
-      </div>
-
-      <div class="tuner" aria-hidden="true">
-        <div class="tuner__scale" id="tuner-scale"></div>
-        <div class="tuner__needle" id="dial-needle"></div>
-      </div>
-
-      <div class="transport" role="group" aria-label="Playback">
-        <button class="transport__btn" id="prev" type="button" aria-label="Previous station" title="Previous (←)">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 5v14"/><path d="M19 5l-9 7 9 7z"/>
-          </svg>
-        </button>
-
-        <button class="transport__play" id="play" type="button" aria-label="Play" title="Play / pause (space)">
-          <svg id="icon-play" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-            <path d="M9 5.5v13l10-6.5z"/>
-          </svg>
-          <svg id="icon-pause" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" hidden>
-            <rect x="7" y="5" width="3.6" height="14" rx="1.2"/>
-            <rect x="13.4" y="5" width="3.6" height="14" rx="1.2"/>
-          </svg>
-        </button>
-
-        <button class="transport__btn" id="next" type="button" aria-label="Next station" title="Next (→)">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M18 5v14"/><path d="M5 5l9 7-9 7z"/>
-          </svg>
-        </button>
-      </div>
-
-      <div class="volume">
-        <div class="volume__head">
-          <span class="receiver__label">Volume</span>
-          <output class="volume__value" id="volume-value" for="volume">70%</output>
+    <section class="console glass" aria-label="Radio controls">
+      <div class="console__tuner">
+        <div class="console__head">
+          <span class="console__label">Tuner</span>
+          <span class="console__readout">
+            <span id="station-number">01</span><span class="console__slash">/</span><span id="station-total">30</span>
+          </span>
         </div>
-        <div class="volume__row">
+        <div class="tuner" id="tuner" role="slider" tabindex="0" aria-label="Tune station"
+             aria-orientation="horizontal" aria-valuemin="1" aria-valuemax="30" aria-valuenow="1"
+             aria-valuetext="StreamAfrica Lofi">
+          <div class="tuner__bands" id="tuner-bands" aria-hidden="true"></div>
+          <div class="tuner__scale" id="tuner-scale" aria-hidden="true"></div>
+          <div class="tuner__needle" id="dial-needle" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <div class="console__controls">
+        <div class="transport" role="group" aria-label="Playback">
+          <button class="transport__btn" id="prev" type="button" aria-label="Previous station" title="Previous (←)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 5v14"/><path d="M19 5l-9 7 9 7z"/>
+            </svg>
+          </button>
+
+          <button class="transport__play" id="play" type="button" aria-label="Play" title="Play / pause (space)">
+            <svg id="icon-play" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+              <path d="M9 5.5v13l10-6.5z"/>
+            </svg>
+            <svg id="icon-pause" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true" hidden>
+              <rect x="7" y="5" width="3.6" height="14" rx="1.2"/>
+              <rect x="13.4" y="5" width="3.6" height="14" rx="1.2"/>
+            </svg>
+          </button>
+
+          <button class="transport__btn" id="next" type="button" aria-label="Next station" title="Next (→)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 5v14"/><path d="M5 5l9 7-9 7z"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="volume">
           <button class="volume__mute" id="mute" type="button" aria-label="Mute" title="Mute (m)">
-            <svg id="icon-volume" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <svg id="icon-volume" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5z" fill="currentColor" stroke="none"/>
               <path d="M15.5 9a4 4 0 0 1 0 6"/>
               <path d="M18 6.5a7.5 7.5 0 0 1 0 11"/>
             </svg>
-            <svg id="icon-muted" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" hidden>
+            <svg id="icon-muted" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
               <path d="M4 9.5v5h3.2L12 18.5v-13L7.2 9.5z" fill="currentColor" stroke="none"/>
               <path d="M16 9.5l5 5"/><path d="M21 9.5l-5 5"/>
             </svg>
           </button>
           <input class="slider" id="volume" type="range" min="0" max="100" step="1" value="70" aria-label="Volume">
+          <output class="volume__value" id="volume-value" for="volume">70%</output>
         </div>
       </div>
 
-      <div class="receiver__rule" aria-hidden="true"></div>
-
-      <section class="stations" aria-label="Stations">
-        <div class="stations__head">
-          <span class="receiver__label">Stations</span>
-          <span class="stations__note" id="stations-count">17 live</span>
+      <div class="console__side">
+        <div class="console__air">
+          <span class="air-dot" aria-hidden="true"></span>
+          <span class="console__label" id="air-label">STANDBY</span>
+          <span class="console__timer" id="air-timer">00:00</span>
         </div>
-        <div class="stations__list" id="stations"></div>
-      </section>
-    </aside>
+
+        <div class="console__actions">
+          <button class="action" id="open-stations" type="button" aria-label="Stations" aria-expanded="false" aria-controls="drawer" title="Stations (s)">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h10"/>
+            </svg>
+            <span>Stations</span>
+            <span class="action__count" id="stations-count">30</span>
+          </button>
+
+          <button class="icon-btn" id="open-settings" type="button" aria-label="Settings" title="Settings">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3.2"/>
+              <path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/>
+            </svg>
+          </button>
+
+          <button class="icon-btn" id="open-help" type="button" aria-label="Keyboard shortcuts" title="Shortcuts (?)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M9.6 9.3a2.5 2.5 0 1 1 3.6 2.3c-.8.4-1.2.9-1.2 1.9"/>
+              <circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/>
+            </svg>
+          </button>
+        </div>
+
+        <button class="sleep-chip" id="sleep-chip" type="button" hidden title="Cancel sleep timer">
+          <span aria-hidden="true">☾</span> <span id="sleep-chip-text">SLEEP 15:00</span>
+        </button>
+      </div>
+    </section>
   </main>
+
+  <div class="drawer" id="drawer" aria-hidden="true">
+    <div class="drawer__scrim" id="drawer-scrim"></div>
+    <aside class="drawer__panel glass" aria-labelledby="drawer-title">
+      <header class="drawer__head">
+        <div>
+          <h2 class="drawer__title" id="drawer-title">Stations</h2>
+          <p class="drawer__sub"><span id="drawer-count">30</span> live streams</p>
+        </div>
+        <button class="icon-btn" id="close-stations" type="button" aria-label="Close stations">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"/>
+          </svg>
+        </button>
+      </header>
+
+      <div class="drawer__search">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/>
+        </svg>
+        <input id="station-search" type="search" placeholder="Search name, place, mood…" aria-label="Search stations" autocomplete="off" spellcheck="false">
+        <kbd>/</kbd>
+      </div>
+
+      <div class="drawer__filters" id="group-filters" aria-label="Filter stations"></div>
+
+      <div class="drawer__list" id="stations"></div>
+
+      <footer class="drawer__foot">
+        <span><kbd>f</kbd> favorite</span>
+        <span><kbd>1</kbd>–<kbd>6</kbd> presets</span>
+        <span><kbd>esc</kbd> close</span>
+      </footer>
+    </aside>
+  </div>
+
+  <div class="sheet glass" id="settings" aria-hidden="true" hidden>
+    <header class="sheet__head">
+      <span class="sheet__title">Settings</span>
+      <button class="icon-btn" id="close-settings" type="button" aria-label="Close settings">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+    </header>
+
+    <div class="sheet__row">
+      <span>Relay click</span>
+      <button class="switch" id="toggle-sound" type="button" role="switch" aria-checked="true"><i></i></button>
+    </div>
+    <div class="sheet__row">
+      <span>Compact console</span>
+      <button class="switch" id="toggle-compact" type="button" role="switch" aria-checked="false"><i></i></button>
+    </div>
+    <div class="sheet__row">
+      <span>Faceplate skin</span>
+      <button class="switch" id="toggle-faceplate" type="button" role="switch" aria-checked="false"><i></i></button>
+    </div>
+    <div class="sheet__row">
+      <span>Cinema mode</span>
+      <button class="switch" id="toggle-cinema" type="button" role="switch" aria-checked="false"><i></i></button>
+    </div>
+
+    <div class="sheet__sleep">
+      <div class="sheet__row">
+        <span>Sleep timer</span>
+        <span class="sheet__sleep-status" id="sleep-status">Off</span>
+      </div>
+      <div class="sleep__options" role="group" aria-label="Sleep timer">
+        <button class="sleep__btn is-active" id="sleep-0" type="button" data-sleep="0">Off</button>
+        <button class="sleep__btn" id="sleep-15" type="button" data-sleep="15">15m</button>
+        <button class="sleep__btn" id="sleep-30" type="button" data-sleep="30">30m</button>
+        <button class="sleep__btn" id="sleep-60" type="button" data-sleep="60">60m</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="help" hidden>
+    <div class="modal__scrim" id="help-scrim"></div>
+    <div class="modal__panel glass" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <header class="modal__head">
+        <h2 id="help-title">Shortcuts</h2>
+        <button class="icon-btn" id="help-close" type="button" aria-label="Close shortcuts">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"/>
+          </svg>
+        </button>
+      </header>
+      <dl class="keys">
+        <div><dt><kbd>space</kbd></dt><dd>Play / pause</dd></div>
+        <div><dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Tune station</dd></div>
+        <div><dt><kbd>m</kbd></dt><dd>Mute</dd></div>
+        <div><dt><kbd>s</kbd> <kbd>/</kbd></dt><dd>Open stations</dd></div>
+        <div><dt><kbd>f</kbd></dt><dd>Favorite current station</dd></div>
+        <div><dt><kbd>1</kbd>–<kbd>6</kbd></dt><dd>Jump to a favorite</dd></div>
+        <div><dt><kbd>c</kbd></dt><dd>Cinema mode</dd></div>
+        <div><dt><kbd>esc</kbd></dt><dd>Close panels</dd></div>
+      </dl>
+      <p class="modal__note">Drag the tuner rail to scan. Scroll it to step station by station.</p>
+    </div>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <audio id="audio" preload="none" hidden></audio>
