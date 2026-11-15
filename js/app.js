@@ -17,11 +17,13 @@ import {
   formatVolume,
   statusLabel,
   nextPlayable,
+  tune,
 } from "./player-core.js";
 
 const STORAGE_KEY = "outpost-radio:v1";
 const RETRY_DELAY_MS = 900;
 const SKIP_DELAY_MS = 550;
+const STABLE_PLAY_MS = 15_000;
 
 // ------------------------------------------------------------------ elements
 
@@ -86,8 +88,11 @@ let desiredPlaying = false;
 /** Which station is actually in the <audio> element, and how the load is going. */
 let attempt = { index: -1, retries: 0, token: 0 };
 
-/** Pause events this soon after a new source are the browser swapping streams. */
-let loadStartedAt = 0;
+/** True between assigning a new source and the first `playing` event. */
+let swapping = false;
+
+/** When the current continuous playback started; used to restore the retry budget. */
+let playingSince = 0;
 
 let lastRenderedIndex = -1;
 
@@ -135,7 +140,7 @@ function render() {
   el.mute.setAttribute("aria-pressed", String(state.muted));
 
   el.volume.value = String(Math.round(state.volume * 100));
-  el.volumeValue.textContent = formatVolume(state);
+  el.volumeValue.textContent = state.muted ? "MUTE" : formatVolume(state);
 
   const count = CHANNELS.length || 1;
   const slot = ((state.index + 0.5) / count) * 100;
@@ -152,7 +157,8 @@ function render() {
     const active = index === state.index;
     chip.classList.toggle("is-active", active);
     chip.classList.toggle("is-dead", state.dead.includes(index));
-    chip.setAttribute("aria-pressed", String(active));
+    if (active) chip.setAttribute("aria-current", "true");
+    else chip.removeAttribute("aria-current");
 
     // Keep the dialled station visible in the strip, without yanking the page.
     if (active && shouldScroll) {
@@ -246,9 +252,10 @@ function loadStation(index, { autoplay } = { autoplay: true }) {
   };
   attempt = { index: state.index, retries: 0, token: attempt.token + 1 };
   desiredPlaying = Boolean(autoplay);
+  swapping = true;
+  playingSince = 0;
 
   const token = attempt.token;
-  loadStartedAt = Date.now();
   el.audio.onerror = () => fail(token, "Stream error");
   el.audio.src = channel.url;
   el.audio.load();
@@ -267,6 +274,14 @@ function fail(token, reason = "Stream error") {
   const channel = CHANNELS[attempt.index];
   if (!channel) return;
 
+  // A stream that played for a while earns its retry budget back; otherwise a
+  // single hiccup an hour into a session would condemn it permanently.
+  if (playingSince > 0 && Date.now() - playingSince > STABLE_PLAY_MS) {
+    attempt.retries = 0;
+  }
+  playingSince = 0;
+  swapping = false;
+
   if (attempt.retries === 0) {
     attempt.retries = 1;
     state = { ...state, status: desiredPlaying ? STATUS.LOADING : STATUS.PAUSED };
@@ -275,6 +290,8 @@ function fail(token, reason = "Stream error") {
 
     window.setTimeout(() => {
       if (token !== attempt.token) return;
+      swapping = true;
+      playingSince = 0;
       el.audio.src = channel.url;
       el.audio.load();
       if (desiredPlaying) safePlay();
@@ -299,6 +316,8 @@ function fail(token, reason = "Stream error") {
   }
 
   const keepPlaying = desiredPlaying;
+  // We are about to swap sources; ignore any teardown pause from the failed one.
+  if (keepPlaying) swapping = true;
   window.setTimeout(() => {
     if (token !== attempt.token) return;
     if (keepPlaying) loadStation(target, { autoplay: true });
@@ -320,7 +339,11 @@ function togglePlay() {
     return;
   }
 
-  const needsLoad = attempt.index !== state.index || !el.audio.currentSrc || state.status === STATUS.ERROR;
+  const needsLoad =
+    attempt.index !== state.index ||
+    !el.audio.currentSrc ||
+    state.status === STATUS.ERROR ||
+    state.dead.includes(state.index);
   if (needsLoad) {
     loadStation(state.index, { autoplay: true });
     return;
@@ -332,12 +355,12 @@ function togglePlay() {
 }
 
 function step(direction) {
-  const target = nextPlayable(CHANNELS, state.index, state.dead, direction);
-  if (target === -1) {
+  const next = tune(state, CHANNELS, direction);
+  if (next.status === STATUS.ERROR) {
     showToast("No playable stations left");
     return;
   }
-  selectAt(target);
+  selectAt(next.index);
 }
 
 /**
@@ -346,6 +369,10 @@ function step(direction) {
  */
 function selectAt(index) {
   if (!desiredPlaying) {
+    // Invalidate any pending retry/skip timer: the user just picked a station,
+    // and a timer scheduled 500 ms ago must not tune away from it.
+    attempt = { ...attempt, token: attempt.token + 1 };
+    swapping = false;
     state = { ...selectStation(state, CHANNELS, index), status: STATUS.IDLE, error: null };
     render();
     persist();
@@ -437,6 +464,8 @@ function wireMediaSession() {
 function wireAudioEvents() {
   el.audio.addEventListener("playing", () => {
     desiredPlaying = true;
+    swapping = false;
+    playingSince = Date.now();
     state = { ...state, status: STATUS.PLAYING, error: null };
     render();
   });
@@ -449,9 +478,10 @@ function wireAudioEvents() {
   });
 
   el.audio.addEventListener("pause", () => {
-    // A pause this close to a source swap is the browser tearing down the old
-    // stream, not a user action.
-    if (desiredPlaying && Date.now() - loadStartedAt < 800) return;
+    // While a new source is being swapped in, the browser fires pause for the
+    // old stream. That is teardown, not the user, and `swapping` is the reliable
+    // signal for it (a timer would misfire on slow loads).
+    if (desiredPlaying && swapping) return;
     // The system (headphones unplugged, audio focus lost) can pause us too.
     // If so, respect it instead of showing ON AIR over silence.
     desiredPlaying = false;
@@ -462,10 +492,9 @@ function wireAudioEvents() {
   });
 
   el.audio.addEventListener("ended", () => {
-    // Live streams should never end; if one does, reconnect rather than die.
-    if (desiredPlaying && attempt.index >= 0) {
-      loadStation(attempt.index, { autoplay: true });
-    }
+    // Live streams never end. If one does (or a finite stream sneaks in), treat
+    // it as a failure so the retry/skip budget applies instead of looping.
+    if (desiredPlaying) fail(attempt.token, "Stream ended");
   });
 }
 
@@ -512,8 +541,11 @@ function wireKeyboard() {
       tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable;
     if (typing) return;
 
+    // Holding a key should not machine-gun station loads or mute flips.
+    if (event.repeat) return;
+
     // A focused button already handles space/enter itself; intercepting space
-    // there would fire the action twice.
+    // there would fire the action twice. Other shortcuts stay live.
     const onButton = tag === "BUTTON";
 
     switch (event.key) {
@@ -525,7 +557,6 @@ function wireKeyboard() {
         break;
       case "k":
       case "K":
-        if (onButton) return;
         event.preventDefault();
         togglePlay();
         break;

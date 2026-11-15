@@ -7,6 +7,7 @@ import {
   clampVolume,
   wrapIndex,
   createState,
+  isDead,
   nextPlayable,
   selectStation,
   tune,
@@ -64,6 +65,24 @@ test("selectStation wraps out-of-range and rejects an empty list", () => {
   assert.equal(selectStation(state, fakeChannels, 7).index, 2);
   const broken = selectStation(state, [], 0);
   assert.equal(broken.status, STATUS.ERROR);
+});
+
+test("selectStation keeps the current playback status", () => {
+  const state = { ...createState({ channels: fakeChannels }), status: STATUS.PLAYING };
+  const next = selectStation(state, fakeChannels, 2);
+  assert.equal(next.index, 2);
+  assert.equal(next.status, STATUS.PLAYING);
+});
+
+test("isDead only matches indexes in the dead list", () => {
+  const state = { ...createState({ channels: fakeChannels }), dead: [1, 3] };
+  assert.equal(isDead(state, 1), true);
+  assert.equal(isDead(state, 2), false);
+});
+
+test("createState falls back to the first station for a non-numeric index", () => {
+  assert.equal(createState({ channels: fakeChannels, index: "2" }).index, 0);
+  assert.equal(createState({ channels: fakeChannels, index: undefined }).index, 0);
 });
 
 // ---------------------------------------------------------------- tuning

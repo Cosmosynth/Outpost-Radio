@@ -8,8 +8,8 @@
   --font-handwritten: "Caveat", "Segoe Script", cursive;
 
   --text: #fde8d0;
-  --text-dim: rgba(253, 232, 208, 0.62);
-  --text-faint: rgba(253, 232, 208, 0.42);
+  --text-dim: rgba(253, 232, 208, 0.68);
+  --text-faint: rgba(253, 232, 208, 0.58);
 
   --accent: #ff9e64;
   --accent-bright: #ffb98a;
@@ -63,6 +63,13 @@ input {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
+}
+
+/* SVG elements are not HTML elements, so the UA `[hidden] { display: none }`
+   rule does not match them. Without this, both play/pause glyphs paint on top
+   of each other. */
+svg[hidden] {
+  display: none;
 }
 
 /* ------------------------------------------------------------------ scene */
@@ -653,9 +660,10 @@ body[data-state="loading"] .meter span {
 }
 
 .chip.is-dead {
-  opacity: 0.38;
+  color: var(--text-faint);
   text-decoration: line-through;
   text-decoration-thickness: 1px;
+  border-style: dashed;
 }
 
 /* ------------------------------------------------------------------- hint */

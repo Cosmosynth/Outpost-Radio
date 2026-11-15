@@ -78,7 +78,6 @@ export function tune(state, channels, direction = 1) {
   if (target === -1) {
     return {
       ...state,
-      playing: false,
       status: STATUS.ERROR,
       error: "Every station is offline",
     };

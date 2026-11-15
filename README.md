@@ -2,8 +2,8 @@
 
 A local-only glass console for the live lofi, ambient and synth stations from
 [Firewatch-Clock-Trials](https://github.com/Cosmosynth/Firewatch-Clock-Trials).
-No OST files, no build step, no dependencies — just `index.html`, CSS, and two
-ES modules.
+No OST files, no build step, no dependencies — just `index.html`, CSS, and
+three ES modules.
 
 Dusk ridges, frosted panels, an amber tuning needle. Open it, press play, leave
 it on.
@@ -19,6 +19,9 @@ you a blank player. Serve the folder over HTTP:
 # from this folder
 python -m http.server 5173 --bind 127.0.0.1
 ```
+
+If `python` is not on PATH, Windows installs from python.org usually provide
+`py -3 -m http.server 5173 --bind 127.0.0.1`.
 
 Then open <http://127.0.0.1:5173>.
 
@@ -41,7 +44,8 @@ nothing to install or compile.
 | Pick a station | any chip in the strip | tab to it, `enter` |
 
 Your last station, volume and mute state are saved in `localStorage` under
-`outpost-radio:v1`. Nothing is sent anywhere.
+`outpost-radio:v1`. There is no analytics or backend; the only external requests
+are the streams themselves and Google Fonts.
 
 Paused or idle, `←`/`→` only moves the selection. Playing, it tunes straight to
 the next station.
@@ -132,8 +136,8 @@ Live streams also cannot seek — there is no duration and no position to scrub.
 `backdrop-filter` is the whole look, and some browsers (notably older Firefox on
 Windows) do not support it. A `@supports not (backdrop-filter: …)` rule swaps
 the panels to a solid dark surface so the text stays readable instead of
-turning into mud. Backdrop blur is also paused when the tab is hidden, and all
-drift/twinkle animation stops under `prefers-reduced-motion: reduce`.
+turning into mud. The drifting scene animations pause while the tab is hidden,
+and all drift/twinkle motion stops under `prefers-reduced-motion: reduce`.
 
 ---
 
